@@ -1,0 +1,479 @@
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <sstream>
+#include <algorithm>
+#include <iomanip> 
+
+struct Order {
+    int id;
+    std::string name;
+    int quantity;
+    double price;
+};
+
+class Pharmacy 
+{
+
+    public:
+    
+        static const int HASH_SIZE = 19;  // Size of the hash table
+        std::vector<Order> hashTable[HASH_SIZE];
+        int calculateHash(int orderId) 
+        {
+            int hash = orderId % HASH_SIZE;
+            int index = hash;
+
+            while (!hashTable[index].empty() && hashTable[index][0].id != orderId) 
+            {
+                index = (index + 1) % HASH_SIZE;  // Linear probing
+                if (index == hash) 
+                {
+                    std::cout << "Hash table is full. Cannot add order." << std::endl;
+                    return -1;  // Return -1 if hash table is full
+                }
+            }
+        return index;
+        }
+
+    void updateOrderFile();
+    
+    void addOrder(const Order& order) 
+    {
+        int hash = calculateHash(order.id);
+        hashTable[hash].push_back(order);
+        std::cout << "Order added successfully." << std::endl;
+    }
+
+    void deleteOrder() 
+    {
+        char choice;
+        if (std::all_of(hashTable, hashTable + HASH_SIZE, [](const std::vector<Order>& bucket) 
+        {
+             return bucket.empty();
+        }
+        )) 
+        {
+            std::cout << "No orders to delete." << std::endl;
+            return;
+        }
+        int orderId;
+        do
+        {
+            std::cout << "\nEnter Order ID to delete:\n ";
+            std::cin >> orderId;
+            int hash = calculateHash(orderId);
+            std::vector<Order>& bucket = hashTable[hash];
+    
+             auto it = std::find_if(bucket.begin(), bucket.end(), [orderId](const Order& order) {
+                return order.id == orderId;
+            });
+            if (it != bucket.end())
+            {
+                bucket.erase(it);
+                std::cout << "Order deleted successfully." << std::endl;
+                updateOrderFile();  // Update the order file after deleting the order
+            }
+            else 
+            {
+                std::cout << "Failed to delete order. Order not found." << std::endl;
+            }
+            
+            std::cout << "Do you want to delete another order? (y/n): ";
+            std::cin >> choice;
+        } while (choice == 'y' || choice == 'Y');
+    }
+
+    void deleteMultipleOrders() 
+    {
+        if (std::all_of(hashTable, hashTable + HASH_SIZE, [](const std::vector<Order>& bucket) 
+        {
+             return bucket.empty();
+        }
+        )) 
+        {
+            std::cout << "No orders to delete." << std::endl;
+            return;
+        }
+        int count;
+        char choice;
+        do
+        {
+            std::cout << "Enter the number of orders to delete: ";
+             std::cin >> count;
+
+            // Check if count is greater than the total number of orders
+            int totalOrders = 0;
+            for (int i = 0; i < HASH_SIZE; ++i) 
+            {
+                totalOrders += hashTable[i].size();
+            }
+
+            if (count > totalOrders) 
+            {
+                std::cout << "There are only " << totalOrders << " orders available. You cannot delete more than the available orders." << std::endl;
+                return;
+            }
+
+            std::vector<int> orderIds(count);
+            std::cout << "Enter the Order IDs to delete:" << std::endl;
+            for (int i = 0; i < count; ++i) 
+            {
+                std::cin >> orderIds[i];
+            }
+
+            int deletedCount = 0;
+            for (int orderId : orderIds) 
+            {
+                int hash = calculateHash(orderId);
+                std::vector<Order>& bucket = hashTable[hash];
+                auto it = std::find_if(bucket.begin(), bucket.end(), [orderId](const Order& order) 
+                {
+                    return order.id == orderId;
+                 });
+                if (it != bucket.end()) 
+                {
+                     bucket.erase(it);
+                    ++deletedCount;
+                }   
+            }
+            
+             std::cout << deletedCount << " orders deleted successfully." << std::endl;
+            if (deletedCount > 0) 
+            {
+                 updateOrderFile();  // Update the order file after deleting multiple orders
+            } 
+            std::cout << "Do you want to multiple orders? (y/n): ";
+            std::cin >> choice;
+        } while (choice == 'y' || choice == 'Y');
+        
+    }
+
+    void modifyOrder(int orderId, const Order& newOrder) 
+    {
+        int hash = calculateHash(orderId);
+        std::vector<Order>& bucket = hashTable[hash];
+        auto it = std::find_if(bucket.begin(), bucket.end(), [orderId](const Order& order) 
+        {
+            return order.id == orderId;
+        });
+        if (it != bucket.end()) 
+        {
+            *it = newOrder;
+            std::cout << "Order modified successfully." << std::endl;
+            updateOrderFile();  // Update the order file after modifying the order
+        } 
+        else 
+        {
+            std::cout << "Failed to modify order. Order not found." << std::endl;
+        }
+    }
+
+    void displayOrderList() 
+    {
+        std::ifstream file("orders.txt");
+        if (file.is_open()) 
+        {
+            std::string line;
+            std::cout << "Order List:" << std::endl;
+            while (std::getline(file, line))
+            {
+                std::vector<std::string> tokens = tokenize(line, ',');
+                int id = std::stoi(tokens[0]);
+                std::cout << "ID: " << id << ", Name: " << tokens[1] << ", Quantity: " << tokens[2] << ", Price: " << tokens[3] << std::endl;
+            }
+            file.close();
+        } 
+        else 
+        {
+            std::cout << "Failed to open order file." << std::endl;
+        }
+    }
+
+    void displayDailySummary() 
+    {
+         std::ifstream file("orders.txt");
+        if (file.is_open()) 
+        {
+            double totalSales = 0.0;
+            std::string line;
+            std::cout << "Daily Summary:" << std::endl;
+            std::cout << "-----------------------------------------------------------------" << std::endl;
+            std::cout << "Product ID   Product Name   Quantity   Price       Total Price" << std::endl;
+            std::cout << "-----------------------------------------------------------------" << std::endl;
+            while (std::getline(file, line)) 
+            {
+                std::vector<std::string> tokens = tokenize(line, ',');
+                int id = std::stoi(tokens[0]);
+                 std::string name = tokens[1];
+                int quantity = std::stoi(tokens[2]);
+                 double price = std::stod(tokens[3]);
+            
+                double totalPrice = quantity * price;
+                totalSales += totalPrice;
+            
+                std::cout <<"| "<< std::setw(10) << id << "   ";
+                std::cout << std::setw(10) << name << "   ";
+                std::cout << std::setw(10) << quantity << "   ";
+                std::cout << std::fixed << std::setprecision(2) << price << "   ";
+                std::cout << std::setw(10) << std::setprecision(2) << totalPrice<<"\t|" << std::endl;
+            }
+            std::cout << "-----------------------------------------------------------------" << std::endl;
+            std::cout << "| Total Sales: $" << std::fixed << std::setprecision(2) << totalSales<<"\t\t\t\t\t\t|" << std::endl;
+            std::cout << "-----------------------------------------------------------------" << std::endl;
+            file.close();
+        } 
+         else 
+        {
+            std::cout << "Failed to open order file." << std::endl;
+        }
+    }
+
+   void takeOrder()
+   {
+        char choice;
+        do 
+        {
+            Order order;
+            std::cout << "Enter Order ID: ";
+            std::cin >> order.id;
+
+            // Check if order ID already exists
+            if (isOrderIdExists(order.id))
+            {
+                std::cout << "Order ID already exists. Please enter a unique Order ID." << std::endl;
+                continue;
+            }
+
+            std::cout << "Enter Product Name: ";
+            std::cin.ignore();
+            std::getline(std::cin, order.name);
+
+            // Input validation for quantity
+            bool validQuantity = false;
+            do 
+            {
+                std::cout << "Enter Quantity: ";
+                std::string quantityStr;
+                std::cin >> quantityStr;
+                std::stringstream quantityStream(quantityStr);
+                if (quantityStream >> order.quantity)
+                {
+                    validQuantity = true;
+                } 
+                else 
+                {
+                    std::cout << "Invalid quantity. Please enter a numeric value." << std::endl;
+                }
+            } while (!validQuantity);
+
+            // Input validation for price
+            bool validPrice = false;
+            do
+            {
+                std::cout << "Enter Price: ";
+                std::string priceStr;
+                std::cin >> priceStr;
+                std::stringstream priceStream(priceStr);
+                if (priceStream >> order.price) 
+                {
+                    validPrice = true;
+                }
+                else 
+                {
+                    std::cout << "Invalid price. Please enter a numeric value." << std::endl;
+                }
+            } while (!validPrice);
+
+            addOrder(order);
+            updateOrderFile();  // Update the order file after adding the order
+
+            std::cout << "Do you want to add another order? (y/n): ";
+            std::cin >> choice;
+        }while (choice == 'y' || choice == 'Y');
+    }
+
+    bool isOrderIdExists(int orderId) 
+    {
+        int hash = calculateHash(orderId);
+        std::vector<Order>& bucket = hashTable[hash];
+        for (const auto& order : bucket)
+        {
+            if (order.id == orderId) 
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+
+    void searchOrder(int orderId) 
+    {
+        int hash = calculateHash(orderId);
+        std::vector<Order>& bucket = hashTable[hash];
+        auto it = std::find_if(bucket.begin(), bucket.end(), [orderId](const Order& order) 
+        {
+            return order.id == orderId;
+        });
+        if (it != bucket.end()) 
+        {
+            Order& order = *it;
+            std::cout << "Order Found:" << std::endl;
+            std::cout << "ID: " << order.id << ", Name: " << order.name << ", Quantity: " << order.quantity << ", Price: " << order.price << std::endl;
+        }
+        else
+        {
+            std::cout << "Order not found." << std::endl;
+        }
+    }
+
+    void exitSystem() 
+    {
+        std::cout << "Exiting the system..." << std::endl;
+        // Perform any necessary cleanup or saving before exiting
+    }
+
+    private:
+        std::vector<std::string> tokenize(const std::string& line, char delimiter) 
+        {
+            std::vector<std::string> tokens;
+            std::stringstream ss(line);
+            std::string token;
+            while (std::getline(ss, token, delimiter)) 
+            {
+                tokens.push_back(token);
+            }
+            return tokens;
+        }
+    };
+
+void Pharmacy::updateOrderFile()
+{
+    std::ofstream file("orders.txt");
+    if (file.is_open()) {
+        for (int i = 0; i < HASH_SIZE; ++i) {
+            std::vector<Order>& bucket = hashTable[i];
+            for (const auto& order : bucket) {
+                file << order.id << "," << order.name << "," << order.quantity << "," << order.price << std::endl;
+            }
+        }
+        file.close();
+    } else {
+        std::cout << "Failed to open order file for updating." << std::endl;
+    }
+}
+
+int main() 
+{
+    Pharmacy pharmacy;
+    
+    int choice;
+    do 
+    {
+        std::cout<<"\n";
+        std::cout << "-----------------------------------------------------------------\n";
+        std::cout << "\t\tPharmacy Management System" << std::endl;
+        std::cout << "-----------------------------------------------------------------\n";
+        std::cout << "| 1. Add Order\t\t\t\t\t\t\t|" << std::endl;
+        std::cout << "| 2. Delete Order\t\t\t\t\t\t|" << std::endl;
+        std::cout << "| 3. Delete Multiple Orders\t\t\t\t\t|" << std::endl;
+        std::cout << "| 4. Modify Order\t\t\t\t\t\t|" << std::endl;
+        std::cout << "| 5. Display Order List\t\t\t\t\t\t|" << std::endl;
+        std::cout << "| 6. Display Daily Summary\t\t\t\t\t|" << std::endl;
+        std::cout << "| 7. Search Order\t\t\t\t\t\t|" << std::endl;
+        std::cout << "| 8. Exit\t\t\t\t\t\t\t|" << std::endl;
+        std::cout << "-----------------------------------------------------------------\n";
+        std::cout<<"\n";
+        std::cout << "Enter your choice: ";
+        std::cout<<"\n";
+        std::cin >> choice;
+
+        switch (choice) 
+        {
+            case 1:
+                pharmacy.takeOrder();
+                break;
+                
+            case 2: 
+            {
+                pharmacy.deleteOrder();
+                break;
+            }
+            
+            case 3:
+                pharmacy.deleteMultipleOrders();
+                break;
+                
+            case 4: 
+            {
+                char choice;
+                do
+                {
+                    int orderId;
+                    std::cout << "Enter Order ID to modify: ";
+                    std::cin >> orderId;
+
+                    int hash = pharmacy.calculateHash(orderId);
+                    std::vector<Order>& bucket = pharmacy.hashTable[hash];
+                    auto it = std::find_if(bucket.begin(), bucket.end(), [orderId](const Order& order) 
+                    {
+                        return order.id == orderId;
+                     });
+                
+                    if (it != bucket.end()) 
+                    {
+                        Order newOrder;
+                        newOrder.id = orderId;
+                        std::cout << "Enter Product Name: ";
+                        std::cin.ignore();
+                        std::getline(std::cin, newOrder.name);
+                        std::cout << "Enter Quantity: ";
+                        std::cin >> newOrder.quantity;
+                        std::cout << "Enter Price: ";
+                        std::cin >> newOrder.price;
+                        pharmacy.modifyOrder(orderId, newOrder);
+                    } 
+                    else 
+                    {
+                        std::cout << "Failed to modify order. Order not found." << std::endl;
+                    }
+                    std::cout << "do you want to continue modifying  (y/n)?\n";
+                    std::cin >> choice;
+                }while(choice=='Y'||choice=='y');
+                break;
+            }
+            
+            case 5:
+                pharmacy.displayOrderList();
+                break;
+                
+            case 6:
+                pharmacy.displayDailySummary();
+                break;
+                
+            case 7: 
+                {
+                    int orderId;
+                    char choice;
+                    do
+                    {
+                        std::cout << "Enter Order ID to search: ";
+                        std::cin >> orderId;
+                        pharmacy.searchOrder(orderId);
+                        std::cout << "do you want to continue searching  (y/n)?\n";
+                        std::cin >> choice;
+                    }while(choice=='Y'||choice=='y');
+                    break;
+                }
+                    
+            case 8:
+                pharmacy.exitSystem();
+                break;
+            default:
+                std::cout << "Invalid choice. Please try again." << std::endl;
+        }
+    } while (choice != 8);
+
+    return 0;
+}
