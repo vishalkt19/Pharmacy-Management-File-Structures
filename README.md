@@ -1,1 +1,3 @@
 # Pharmacy-Management-File-Structures
+
+The Pharmacy Order Management System is a file-based mini-project designed to simplify the process of managing orders within a pharmacy. It offers essential functionalities for adding, modifying, deleting, searching, and displaying order information. The system efficiently stores order data in files, allowing users to easily add new orders by providing order ID, customer details, medication information, and quantities. It supports the deletion of individual or multiple orders, as well as the modification of existing order records, ensuring accurate and up-to-date information.
